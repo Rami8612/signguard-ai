@@ -1,0 +1,156 @@
+{
+  "safeAddress": "0x1234567890123456789012345678901234567890",
+  "version": "1.0",
+  "description": "Example trust profile for a Safe multisig. Customize for your team's expected interactions.",
+
+  "trustedContracts": {
+    "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2": {
+      "label": "Aave V3 Pool (Ethereum)",
+      "trustLevel": "PROTOCOL",
+      "allowedSelectors": [
+        "0x617ba037",
+        "0x69328dec",
+        "0xa415bcad",
+        "0x573ade81",
+        "0xe8eda9df",
+        "0xab9c4b5d"
+      ],
+      "allowedSelectorsLabels": {
+        "0x617ba037": "supply",
+        "0x69328dec": "withdraw",
+        "0xa415bcad": "borrow",
+        "0x573ade81": "repay",
+        "0xe8eda9df": "deposit",
+        "0xab9c4b5d": "flashLoan"
+      },
+      "notes": "Main Aave V3 lending pool - audited, widely used"
+    },
+
+    "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2": {
+      "label": "WETH",
+      "trustLevel": "PROTOCOL",
+      "allowedSelectors": [
+        "0xd0e30db0",
+        "0x2e1a7d4d",
+        "0x095ea7b3",
+        "0xa9059cbb"
+      ],
+      "allowedSelectorsLabels": {
+        "0xd0e30db0": "deposit",
+        "0x2e1a7d4d": "withdraw",
+        "0x095ea7b3": "approve",
+        "0xa9059cbb": "transfer"
+      },
+      "notes": "Wrapped Ether - canonical contract"
+    },
+
+    "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D": {
+      "label": "Uniswap V2 Router",
+      "trustLevel": "PROTOCOL",
+      "allowedSelectors": [
+        "0x38ed1739",
+        "0x8803dbee",
+        "0x7ff36ab5",
+        "0x18cbafe5",
+        "0xfb3bdb41",
+        "0x4a25d94a"
+      ],
+      "allowedSelectorsLabels": {
+        "0x38ed1739": "swapExactTokensForTokens",
+        "0x8803dbee": "swapTokensForExactTokens",
+        "0x7ff36ab5": "swapExactETHForTokens",
+        "0x18cbafe5": "swapExactTokensForETH",
+        "0xfb3bdb41": "swapETHForExactTokens",
+        "0x4a25d94a": "swapTokensForExactETH"
+      },
+      "notes": "Uniswap V2 - only swap functions allowed, no liquidity operations"
+    },
+
+    "0xABCDEF0123456789ABCDEF0123456789ABCDEF01": {
+      "label": "Internal Treasury",
+      "trustLevel": "INTERNAL",
+      "allowedSelectors": "*",
+      "notes": "Team-controlled treasury contract - all operations allowed"
+    },
+
+    "0x9876543210987654321098765432109876543210": {
+      "label": "Partner Vault (XYZ Protocol)",
+      "trustLevel": "PARTNER",
+      "allowedSelectors": [
+        "0xb6b55f25",
+        "0x2e1a7d4d"
+      ],
+      "allowedSelectorsLabels": {
+        "0xb6b55f25": "deposit",
+        "0x2e1a7d4d": "withdraw"
+      },
+      "notes": "XYZ Protocol vault - only deposit/withdraw allowed after team review"
+    },
+
+    "0x1111111111111111111111111111111111111111": {
+      "label": "Suspicious Contract (under investigation)",
+      "trustLevel": "WATCHED",
+      "allowedSelectors": [],
+      "notes": "Flagged for review - DO NOT execute transactions to this contract"
+    }
+  },
+
+  "trustedAssets": {
+    "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2": {
+      "symbol": "WETH",
+      "name": "Wrapped Ether",
+      "decimals": 18
+    },
+    "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48": {
+      "symbol": "USDC",
+      "name": "USD Coin",
+      "decimals": 6
+    },
+    "0xdAC17F958D2ee523a2206206994597C13D831ec7": {
+      "symbol": "USDT",
+      "name": "Tether USD",
+      "decimals": 6
+    },
+    "0x6B175474E89094C44Da98b954EescdeCB5BE9d8f6": {
+      "symbol": "DAI",
+      "name": "Dai Stablecoin",
+      "decimals": 18
+    },
+    "0x514910771AF9Ca656af840dff83E8264EcF986CA": {
+      "symbol": "LINK",
+      "name": "Chainlink Token",
+      "decimals": 18
+    },
+    "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984": {
+      "symbol": "UNI",
+      "name": "Uniswap",
+      "decimals": 18
+    }
+  },
+
+  "selectorUsageHistory": {
+    "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2": {
+      "0x617ba037": { "count": 47, "lastUsed": "2025-12-01" },
+      "0x69328dec": { "count": 12, "lastUsed": "2025-11-15" },
+      "0xa415bcad": { "count": 3, "lastUsed": "2025-10-20" }
+    },
+    "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2": {
+      "0xd0e30db0": { "count": 156, "lastUsed": "2025-12-10" },
+      "0x2e1a7d4d": { "count": 89, "lastUsed": "2025-12-09" }
+    },
+    "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D": {
+      "0x38ed1739": { "count": 234, "lastUsed": "2025-12-12" }
+    }
+  },
+
+  "trustedDelegateCalls": {
+    "0x40A2aCCbd92BCA938b02010E17A5b8929b49130D": {
+      "allowedSelectors": ["0x8d80ff0a"],
+      "notes": "MultiSend v1.1.1 - batch transactions. This is the ONLY selector that should be allowed for DELEGATECALL."
+    },
+    "0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761": {
+      "allowedSelectors": ["0x8d80ff0a"],
+      "notes": "MultiSend v1.3.0 - batch transactions"
+    }
+  }
+}
