@@ -1,6 +1,10 @@
 # SignGuard AI
 
-An AI-powered tool that decodes Ethereum transaction calldata into human-understandable consequences, with a focus on power and control changes rather than just technical function details.
+**A visual, AI-powered transaction security tool that decodes Ethereum calldata into human-understandable consequences** — so you know exactly what you're signing before you sign it.
+
+Built for **Safe multisig teams** who need to review transactions with confidence, SignGuard AI goes beyond raw hex and function names. It answers the question that actually matters: **"What happens to my assets and control if I sign this?"**
+
+The recommended way to use SignGuard AI is through its **web interface**, which provides visual calldata analysis, batch transaction timelines, trust profile management, and AI-powered plain-English explanations — all in one place.
 
 ## The Problem
 
@@ -22,6 +26,67 @@ Generic calldata decoders show function names and parameters, but they don't ans
 - **Security-conscious users** who want to understand transaction consequences
 
 This tool is not a replacement for understanding what you're signing. It's an aid for those who want to verify consequences before committing.
+
+---
+
+## Quick Start (Web App)
+
+```bash
+# 1. Install dependencies
+npm install
+cd web && npm install && cd ..
+
+# 2. Configure AI (optional but recommended — get a free key at aistudio.google.com)
+cp .env.example .env
+# Edit .env and add: IA_GEMINI_API_KEY=your_key_here
+
+# 3. Start the app
+npm run dev
+```
+
+| Service | URL |
+|---------|-----|
+| **Web Interface** | http://localhost:5173 |
+| **API Server** | http://localhost:3001 |
+
+The `npm run dev` command starts both the API server and the web frontend simultaneously.
+
+---
+
+## Web Interface
+
+The web UI is the primary way to interact with SignGuard AI. It provides a two-panel layout — input on the left, results on the right — designed for rapid transaction review.
+
+### Core Features
+
+| Feature | Description |
+|---------|-------------|
+| **Visual Calldata Analysis** | Paste raw calldata or a transaction hash and get a full visual breakdown of function, parameters, consequences, and severity |
+| **Safe Multisig Deep Inspection** | Automatically detects `execTransaction`, distinguishes CALL vs DELEGATECALL, and surfaces Safe-specific risks (module changes, owner changes, threshold manipulation) |
+| **Batch (MultiSend) Visualization** | Interactive timeline view of all sub-transactions in a Safe MultiSend batch, with per-call severity indicators and an overall batch summary |
+| **Transaction Hash Lookup** | Fetch a transaction by hash from an RPC endpoint — auto-fills calldata, target address, and operation type |
+| **Trust Profile Upload & Editor** | Upload existing trust profile JSON files or create and edit profiles directly in the browser with a visual interface |
+| **ABI Manager** | Add, list, and delete contract ABIs from the UI — supports multiple chains (Ethereum, Polygon, Arbitrum, Optimism, Base, Gnosis) |
+| **AI-Powered Explanations** | One-click plain-English explanations powered by your choice of AI provider (Gemini, Claude, OpenAI, OpenRouter, Ollama) |
+| **Severity Alerts & Visual Indicators** | Color-coded severity badges (CRITICAL, HIGH, WARN, OK, UNKNOWN) — the header pulses red on CRITICAL transactions |
+| **Trust Context Display** | When a trust profile is loaded, shows contract classification, selector assessment, and usage history inline with results |
+| **Settings Persistence** | AI provider and model preferences are saved in localStorage across sessions |
+
+### AI Provider Support
+
+The web interface lets you select your preferred AI provider and model for generating explanations. **Google Gemini** is the default and recommended provider — it's fast and has a free tier.
+
+| Provider | Models | API Key Variable |
+|----------|--------|------------------|
+| **Google Gemini** (Default) | Gemini 3 Flash/Pro, 2.5 Flash/Pro, 2.0 Flash | `IA_GEMINI_API_KEY` |
+| **OpenRouter** | Claude, GPT-4, Gemini, Llama, etc. | `OPENROUTER_API_KEY` |
+| **Claude (Anthropic)** | Claude 3 Haiku/Sonnet/Opus, Claude 3.5 | `ANTHROPIC_API_KEY` |
+| **OpenAI** | GPT-4o, GPT-4 Turbo, GPT-3.5 | `OPENAI_API_KEY` |
+| **Ollama (Local)** | Any locally installed model | None (local) |
+
+You can also enter custom model IDs if your provider supports models not in the default list. The system automatically uses the first available provider in priority order: **Gemini** > OpenRouter > Claude > OpenAI > Ollama.
+
+---
 
 ## What This Tool Analyzes
 
@@ -104,13 +169,41 @@ SEVERITY: CRITICAL
 
 The difference: **consequences before parameters, power changes before addresses**.
 
-## Installation
+---
+
+## Configuration
+
+Copy `.env.example` to `.env` and configure your AI provider:
 
 ```bash
-npm install
+cp .env.example .env
 ```
 
-## Usage
+**Minimum configuration** (recommended):
+
+```bash
+IA_GEMINI_API_KEY=your_gemini_key_here
+```
+
+**All available environment variables:**
+
+```bash
+# Server
+PORT=3001                      # API server port
+
+# AI Providers (Gemini is default and recommended)
+IA_GEMINI_API_KEY=               # Google Gemini (default) - get free key at aistudio.google.com
+OPENROUTER_API_KEY=           # OpenRouter - access multiple models
+ANTHROPIC_API_KEY=            # Claude direct API
+OPENAI_API_KEY=               # OpenAI GPT models
+OLLAMA_URL=http://localhost:11434  # Local Ollama (no key needed)
+```
+
+---
+
+## CLI Usage (Advanced)
+
+The command-line interface provides direct access to the decoder for scripting, automation, and advanced use cases.
 
 ```bash
 # Basic decode
@@ -180,9 +273,7 @@ All operations execute atomically - all succeed or all fail.
 - Overall batch severity = maximum severity of all sub-transactions
 - Summary shows counts of OK/WARN/DANGER/UNKNOWN operations
 
-### Trust Profile Analysis
-
-The tool supports **Safe Trust Profiles** - configuration files that define which contracts and selectors your Safe normally interacts with. This enables context-aware warnings based on your team's expected behavior.
+### Trust Profile Analysis (CLI)
 
 ```bash
 # Decode with trust profile context
@@ -195,38 +286,186 @@ node bin/decode.js --init-profile <safe_address> > my-safe-profile.json
 node bin/decode.js 0x095ea7b3... --target 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 --profile profiles/example-profile.json
 ```
 
-See the [Trust Profile](#trust-profile-system) section below for detailed documentation.
+See the [Trust Profile System](#trust-profile-system) section below for detailed documentation.
 
-### Configuration
+---
 
-Copy `.env.example` to `.env` and add your Gemini API key:
+## Trust Profile System
 
-```bash
-cp .env.example .env
+The Trust Profile system enables **context-aware transaction analysis** based on your Safe's expected interactions. Instead of analyzing transactions in isolation, the tool can warn when:
+
+- A transaction targets a contract **not in your trusted set**
+- A selector is being used **for the first time** with a contract
+- A selector is **not whitelisted** for a trusted contract
+
+Trust profiles can be created and managed through the **web UI's visual editor** or as JSON files for CLI usage.
+
+### Why Trust Profiles?
+
+**The Problem**: A selector like `0x3ccfd60b` might match `withdraw()` in 4byte.directory, but this is meaningless without knowing the contract. An attacker could deploy a malicious contract where `withdraw()` actually drains your Safe.
+
+**The Solution**: Trust profiles anchor analysis on **contract addresses**, not selectors. Selectors are only interpreted meaningfully when the target contract is explicitly trusted.
+
+### Trust Profile Structure
+
+```json
+{
+  "safeAddress": "0xYourSafe...",
+  "version": "1.0",
+  "trustedContracts": {
+    "0xContractAddress...": {
+      "label": "Aave V3 Pool",
+      "trustLevel": "PROTOCOL",
+      "allowedSelectors": ["0x617ba037", "0x69328dec"],
+      "allowedSelectorsLabels": {
+        "0x617ba037": "supply",
+        "0x69328dec": "withdraw"
+      },
+      "notes": "Main lending pool - audited"
+    }
+  },
+  "selectorUsageHistory": {
+    "0xContractAddress...": {
+      "0x617ba037": { "count": 47, "lastUsed": "2025-12-01" }
+    }
+  }
+}
 ```
 
-**Minimum configuration** (recommended):
+### Trust Levels
 
-```bash
-IA_GEMINI_API_KEY=your_gemini_key_here
+| Level | Description | Selector Handling |
+|-------|-------------|-------------------|
+| `INTERNAL` | Team-controlled contracts | All selectors allowed (`"*"`) |
+| `PROTOCOL` | Verified DeFi protocols | Only whitelisted selectors |
+| `PARTNER` | Known external parties | Only whitelisted selectors |
+| `WATCHED` | Recognized but untrusted | No selector interpretation |
+
+### Contract Classification
+
+| Classification | Meaning | Tool Behavior |
+|----------------|---------|---------------|
+| `TRUSTED` | Contract is in profile with INTERNAL/PROTOCOL/PARTNER level | Full analysis with trust context |
+| `WATCHED` | Contract is in profile but marked for observation only | Warning displayed, no trusted interpretation |
+| `UNKNOWN` | Contract not in profile | **Blocks interpretation** - shows strong warning |
+
+### Selector Classification
+
+For trusted contracts, selectors are further classified:
+
+| Classification | Meaning | Severity Impact |
+|----------------|---------|-----------------|
+| `EXPECTED` | Whitelisted and commonly used | No adjustment |
+| `UNUSUAL` | Whitelisted but rarely used (≤2 times) | Elevated |
+| `NEVER_USED` | Whitelisted but first-time use | Elevated + warning |
+| `NOT_ALLOWED` | Not in whitelist for this contract | **CRITICAL** |
+
+### Example Output: Unknown Contract
+
+When a transaction targets a contract not in your trust profile:
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  ⚠️   UNKNOWN CONTRACT - TRUST PROFILE WARNING                        ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+TARGET CONTRACT:
+  Address: 0xUnknown...
+  Status: NOT IN TRUST PROFILE
+
+This contract is NOT part of your Safe's expected interaction set.
+
+WHAT WE CAN DETERMINE:
+  • Selector: 0x3ccfd60b
+  • 4byte.directory suggests: "withdraw()"
+    ⚠️  DO NOT TRUST THIS NAME - it is UNVERIFIED
+
+╔══════════════════════════════════════════════════════════════════════╗
+║  WHAT THIS MEANS                                                     ║
+║  We CANNOT tell you what this transaction does.                      ║
+║  The function name is MEANINGLESS without knowing the contract's     ║
+║  actual implementation. A function called "withdraw" could:          ║
+║    • Withdraw funds (if honest)                                      ║
+║    • Transfer ownership (if malicious)                               ║
+║    • Drain all assets (if malicious)                                 ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+SEVERITY: UNKNOWN
 ```
 
-**All available environment variables:**
+### Example Output: Trusted Contract
 
-```bash
-# Server
-PORT=3001                      # API server port
+When a transaction targets a trusted contract:
 
-# AI Providers (Gemini is default and recommended)
-IA_GEMINI_API_KEY=               # Google Gemini (default) - get free key at aistudio.google.com
-OPENROUTER_API_KEY=           # OpenRouter - access multiple models
-ANTHROPIC_API_KEY=            # Claude direct API
-OPENAI_API_KEY=               # OpenAI GPT models
-OLLAMA_URL=http://localhost:11434  # Local Ollama (no key needed)
+```
+╔════════════════════════════════════════════════════════════════════╗
+║                      TRUST PROFILE ASSESSMENT                      ║
+╚════════════════════════════════════════════════════════════════════╝
+
+TARGET CONTRACT:
+  Label: WETH
+  Trust Level: PROTOCOL ✓
+
+SELECTOR ASSESSMENT:
+  Expected function: approve
+  Status: EXPECTED ✓ (commonly used with this contract)
+  Previous usage: 156 times
+  Last used: 2025-12-10
+
+[... normal consequence analysis follows ...]
 ```
 
-The system automatically uses the first available provider in priority order:
-**Gemini** → OpenRouter → Claude → OpenAI → Ollama
+### Creating a Trust Profile
+
+**Via the Web UI (recommended):**
+Open the Trust Profile Editor from the web interface to create and manage profiles visually.
+
+**Via the CLI:**
+
+1. Generate a template:
+   ```bash
+   node bin/decode.js --init-profile 0xYourSafeAddress > my-profile.json
+   ```
+
+2. Edit the profile to add your trusted contracts:
+   - Add contract addresses your Safe regularly interacts with
+   - Set appropriate trust levels
+   - Whitelist only the selectors you expect to use
+   - Add usage history if you have it (optional)
+
+3. Use the profile when decoding:
+   ```bash
+   node bin/decode.js <calldata> --target <contract> --profile my-profile.json
+   ```
+
+### Security Principles
+
+1. **Trust is anchored on addresses, not selectors** - A recognized selector name means nothing without a trusted contract
+2. **Unknown contracts are always high-risk** - The tool refuses to interpret selectors for unknown contracts
+3. **No on-chain validation** - Profiles are static JSON files, no network requests
+4. **Classify, don't block** - The tool warns but never prevents signing
+
+### Integration with Safe UI
+
+Trust profiles are designed to be embedded in Safe transaction review flows:
+
+```javascript
+import { decode, loadProfile } from 'calldata-decoder';
+
+const profile = loadProfile('./safe-profile.json');
+const result = await decode(calldata, {
+  targetAddress: '0x...',
+  profile: profile
+});
+
+if (result.trustBlocked) {
+  // Show strong warning - unknown contract
+}
+
+if (result.trustContext?.warnings?.length > 0) {
+  // Show trust warnings
+}
+```
 
 ---
 
@@ -372,237 +611,6 @@ Without ABI, without profile:
 
 ---
 
-## Trust Profile System
-
-The Trust Profile system enables **context-aware transaction analysis** based on your Safe's expected interactions. Instead of analyzing transactions in isolation, the tool can warn when:
-
-- A transaction targets a contract **not in your trusted set**
-- A selector is being used **for the first time** with a contract
-- A selector is **not whitelisted** for a trusted contract
-
-### Why Trust Profiles?
-
-**The Problem**: A selector like `0x3ccfd60b` might match `withdraw()` in 4byte.directory, but this is meaningless without knowing the contract. An attacker could deploy a malicious contract where `withdraw()` actually drains your Safe.
-
-**The Solution**: Trust profiles anchor analysis on **contract addresses**, not selectors. Selectors are only interpreted meaningfully when the target contract is explicitly trusted.
-
-### Trust Profile Structure
-
-```json
-{
-  "safeAddress": "0xYourSafe...",
-  "version": "1.0",
-  "trustedContracts": {
-    "0xContractAddress...": {
-      "label": "Aave V3 Pool",
-      "trustLevel": "PROTOCOL",
-      "allowedSelectors": ["0x617ba037", "0x69328dec"],
-      "allowedSelectorsLabels": {
-        "0x617ba037": "supply",
-        "0x69328dec": "withdraw"
-      },
-      "notes": "Main lending pool - audited"
-    }
-  },
-  "selectorUsageHistory": {
-    "0xContractAddress...": {
-      "0x617ba037": { "count": 47, "lastUsed": "2025-12-01" }
-    }
-  }
-}
-```
-
-### Trust Levels
-
-| Level | Description | Selector Handling |
-|-------|-------------|-------------------|
-| `INTERNAL` | Team-controlled contracts | All selectors allowed (`"*"`) |
-| `PROTOCOL` | Verified DeFi protocols | Only whitelisted selectors |
-| `PARTNER` | Known external parties | Only whitelisted selectors |
-| `WATCHED` | Recognized but untrusted | No selector interpretation |
-
-### Contract Classification
-
-| Classification | Meaning | Tool Behavior |
-|----------------|---------|---------------|
-| `TRUSTED` | Contract is in profile with INTERNAL/PROTOCOL/PARTNER level | Full analysis with trust context |
-| `WATCHED` | Contract is in profile but marked for observation only | Warning displayed, no trusted interpretation |
-| `UNKNOWN` | Contract not in profile | **Blocks interpretation** - shows strong warning |
-
-### Selector Classification
-
-For trusted contracts, selectors are further classified:
-
-| Classification | Meaning | Severity Impact |
-|----------------|---------|-----------------|
-| `EXPECTED` | Whitelisted and commonly used | No adjustment |
-| `UNUSUAL` | Whitelisted but rarely used (≤2 times) | Elevated |
-| `NEVER_USED` | Whitelisted but first-time use | Elevated + warning |
-| `NOT_ALLOWED` | Not in whitelist for this contract | **CRITICAL** |
-
-### Example Output: Unknown Contract
-
-When a transaction targets a contract not in your trust profile:
-
-```
-╔══════════════════════════════════════════════════════════════════════╗
-║  ⚠️   UNKNOWN CONTRACT - TRUST PROFILE WARNING                        ║
-╚══════════════════════════════════════════════════════════════════════╝
-
-TARGET CONTRACT:
-  Address: 0xUnknown...
-  Status: NOT IN TRUST PROFILE
-
-This contract is NOT part of your Safe's expected interaction set.
-
-WHAT WE CAN DETERMINE:
-  • Selector: 0x3ccfd60b
-  • 4byte.directory suggests: "withdraw()"
-    ⚠️  DO NOT TRUST THIS NAME - it is UNVERIFIED
-
-╔══════════════════════════════════════════════════════════════════════╗
-║  WHAT THIS MEANS                                                     ║
-║  We CANNOT tell you what this transaction does.                      ║
-║  The function name is MEANINGLESS without knowing the contract's     ║
-║  actual implementation. A function called "withdraw" could:          ║
-║    • Withdraw funds (if honest)                                      ║
-║    • Transfer ownership (if malicious)                               ║
-║    • Drain all assets (if malicious)                                 ║
-╚══════════════════════════════════════════════════════════════════════╝
-
-SEVERITY: UNKNOWN
-```
-
-### Example Output: Trusted Contract
-
-When a transaction targets a trusted contract:
-
-```
-╔════════════════════════════════════════════════════════════════════╗
-║                      TRUST PROFILE ASSESSMENT                      ║
-╚════════════════════════════════════════════════════════════════════╝
-
-TARGET CONTRACT:
-  Label: WETH
-  Trust Level: PROTOCOL ✓
-
-SELECTOR ASSESSMENT:
-  Expected function: approve
-  Status: EXPECTED ✓ (commonly used with this contract)
-  Previous usage: 156 times
-  Last used: 2025-12-10
-
-[... normal consequence analysis follows ...]
-```
-
-### Creating a Trust Profile
-
-1. Generate a template:
-   ```bash
-   node bin/decode.js --init-profile 0xYourSafeAddress > my-profile.json
-   ```
-
-2. Edit the profile to add your trusted contracts:
-   - Add contract addresses your Safe regularly interacts with
-   - Set appropriate trust levels
-   - Whitelist only the selectors you expect to use
-   - Add usage history if you have it (optional)
-
-3. Use the profile when decoding:
-   ```bash
-   node bin/decode.js <calldata> --target <contract> --profile my-profile.json
-   ```
-
-### Security Principles
-
-1. **Trust is anchored on addresses, not selectors** - A recognized selector name means nothing without a trusted contract
-2. **Unknown contracts are always high-risk** - The tool refuses to interpret selectors for unknown contracts
-3. **No on-chain validation** - Profiles are static JSON files, no network requests
-4. **Classify, don't block** - The tool warns but never prevents signing
-
-### Integration with Safe UI
-
-Trust profiles are designed to be embedded in Safe transaction review flows:
-
-```javascript
-import { decode, loadProfile } from 'calldata-decoder';
-
-const profile = loadProfile('./safe-profile.json');
-const result = await decode(calldata, {
-  targetAddress: '0x...',
-  profile: profile
-});
-
-if (result.trustBlocked) {
-  // Show strong warning - unknown contract
-}
-
-if (result.trustContext?.warnings?.length > 0) {
-  // Show trust warnings
-}
-```
-
----
-
-## Web Interface
-
-The project includes a web-based interface for easier interaction with the decoder.
-
-### Running the Web UI
-
-```bash
-# Start both API server and web frontend
-npm run dev
-
-# Or start separately:
-npm run api      # Start API server on port 3001
-npm run web      # Start Vite dev server on port 5173
-```
-
-Open http://localhost:5173 in your browser.
-
-### Web Features
-
-| Feature | Description |
-|---------|-------------|
-| **Calldata Decoder** | Paste calldata and analyze with one click |
-| **Trust Profile Upload** | Load JSON profiles for context-aware analysis |
-| **ABI Manager** | Add, list, and delete contract ABIs from the browser |
-| **Trust Profile Editor** | Create and edit trust profiles with a visual interface |
-| **AI Provider Selection** | Choose between multiple AI providers and models |
-| **Custom Model Support** | Enter any model ID supported by your chosen provider |
-| **Settings Persistence** | AI preferences saved in localStorage |
-| **Structured AI Explanations** | AI responses rendered with headers, bullet points, and clear sections |
-| **Critical Alert Visual** | Header pulses red when transaction severity is CRITICAL |
-
-### AI-Powered Explanations
-
-The decoder uses AI to generate plain English explanations of transaction consequences. **Google Gemini 3 Flash** is the default and recommended provider - it's fast, accurate, and cost-effective.
-
-#### Quick Setup (Gemini - Recommended)
-
-1. Get a free API key at [Google AI Studio](https://aistudio.google.com/app/apikey)
-2. Add to your `.env` file:
-   ```bash
-   IA_GEMINI_API_KEY=your_key_here
-   ```
-
-That's it! The decoder will automatically use Gemini 2.0 Flash for explanations.
-
-#### All Supported Providers
-
-| Provider | Models | API Key |
-|----------|--------|---------|
-| **Google Gemini** (Default) | Gemini 3 Flash/Pro, 2.5 Flash/Pro, 2.0 Flash | `IA_GEMINI_API_KEY` |
-| **OpenRouter** | Claude, GPT-4, Gemini, Llama, etc. | `OPENROUTER_API_KEY` |
-| **Claude (Anthropic)** | Claude 3 Haiku/Sonnet/Opus, Claude 3.5 | `ANTHROPIC_API_KEY` |
-| **OpenAI** | GPT-4o, GPT-4 Turbo, GPT-3.5 | `OPENAI_API_KEY` |
-| **Ollama (Local)** | Any locally installed model | None (local) |
-
-You can also enter custom model IDs if your provider supports models not in the default list.
-
----
-
 ## Limitations
 
 1. **Requires known function selectors** - Unknown selectors produce "UNKNOWN" risk assessment
@@ -613,16 +621,10 @@ You can also enter custom model IDs if your provider supports models not in the 
 
 ---
 
-## License
-
-MIT
-
----
-
 ## Project Structure
 
 ```
-calldata-decoder/
+signguard_ai/
 ├── bin/
 │   └── decode.js              # CLI entry point
 ├── src/
@@ -685,3 +687,9 @@ Example trust profiles for common DeFi protocols are welcome, but must:
 1. Use verified contract addresses from official sources
 2. Include only well-documented selectors
 3. Set appropriate trust levels (PROTOCOL for audited protocols)
+
+---
+
+## License
+
+MIT
