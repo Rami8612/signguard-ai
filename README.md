@@ -6,6 +6,9 @@ Built for **Safe multisig teams** who need to review transactions with confidenc
 
 The recommended way to use SignGuard AI is through its **web interface**, which provides visual calldata analysis, batch transaction timelines, trust profile management, and AI-powered plain-English explanations — all in one place.
 
+![SignGuard AI Web Interface](./docs/signguard_ai_01.png)
+
+
 ## The Problem
 
 When signing an Ethereum transaction—especially a Safe multisig transaction—users are presented with raw hexadecimal calldata. Most people sign based on trust in the interface, the dApp, or whoever requested the signature.
@@ -72,6 +75,16 @@ The web UI is the primary way to interact with SignGuard AI. It provides a two-p
 | **Trust Context Display** | When a trust profile is loaded, shows contract classification, selector assessment, and usage history inline with results |
 | **Settings Persistence** | AI provider and model preferences are saved in localStorage across sessions |
 
+### Visual Examples
+
+**LOW severity transaction**
+![LOW severity analysis](./docs/signguard_ai_02.png)
+
+**CRITICAL severity transaction**
+![CRITICAL severity analysis](./docs/signguard_ai_03.png)
+![](./docs/signguard_ai_04.png)
+
+
 ### AI Provider Support
 
 The web interface lets you select your preferred AI provider and model for generating explanations. **Google Gemini** is the default and recommended provider — it's fast and has a free tier.
@@ -86,7 +99,11 @@ The web interface lets you select your preferred AI provider and model for gener
 
 You can also enter custom model IDs if your provider supports models not in the default list. The system automatically uses the first available provider in priority order: **Gemini** > OpenRouter > Claude > OpenAI > Ollama.
 
+
+![AI provider selection](./docs/signguard_ai_05.png)
+
 ---
+
 
 ## What This Tool Analyzes
 
