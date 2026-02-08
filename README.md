@@ -8,6 +8,11 @@
   </strong><br/>
   so you know exactly what you're signing before you sign it.
 </p>
+
+<p align="center">
+  <sub><code>v0.9.0 · hackathon pre-release</code></sub>
+</p>
+
 <br/>
 
 Built for **Safe multisig teams**, SignGuard AI goes beyond raw hex and function names to answer the question that actually matters:  
