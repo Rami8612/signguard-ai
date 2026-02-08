@@ -1,12 +1,27 @@
-# SignGuard AI
+<p align="center">
+  <img src="./docs/logo1.png" alt="SignGuard AI" width="220" />
+</p>
+<br/>
+<p align="center">
+  <strong>
+    A visual, AI-powered transaction security tool that decodes Ethereum calldata into human-understandable consequences
+  </strong><br/>
+  so you know exactly what you're signing before you sign it.
+</p>
+<br/>
 
-**A visual, AI-powered transaction security tool that decodes Ethereum calldata into human-understandable consequences** — so you know exactly what you're signing before you sign it.
-
-Built for **Safe multisig teams** who need to review transactions with confidence, SignGuard AI goes beyond raw hex and function names. It answers the question that actually matters: **"What happens to my assets and control if I sign this?"**
+Built for **Safe multisig teams**, SignGuard AI goes beyond raw hex and function names to answer the question that actually matters:  
+**“What happens to my assets and control if I sign this?”**
 
 The recommended way to use SignGuard AI is through its **web interface**, which provides visual calldata analysis, batch transaction timelines, trust profile management, and AI-powered plain-English explanations — all in one place.
+<br/>
 
-![SignGuard AI Web Interface](./docs/signguard_ai_01.png)
+## 🎥 Demo Video
+
+Watch a short demo showing how SignGuard AI analyzes transactions visually before signing.
+
+[![SignGuard AI Demo](./docs/signguard_ai_01.png)](https://youtu.be/ePq_apxlZpY)
+
 
 
 ## The Problem
