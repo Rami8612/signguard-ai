@@ -6,7 +6,7 @@
  */
 
 import { readFileSync, existsSync } from "fs";
-import { join, dirname } from "path";
+import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -96,10 +96,17 @@ export function getAbi(address, options = {}) {
   if (profile && profile.trustedContracts) {
     const contract = profile.trustedContracts[normalizedAddress];
     if (contract && contract.abiPath) {
-      path = contract.abiPath;
-      abi = loadAbiFromPath(path);
-      if (abi) {
-        source = "TRUST_PROFILE_ABI";
+      // Validate abiPath resolves within the abis directory (prevent arbitrary file read)
+      const registryBase = resolve(getRegistryPath());
+      const resolvedAbiPath = resolve(contract.abiPath);
+      if (resolvedAbiPath.startsWith(registryBase + "\\") || resolvedAbiPath.startsWith(registryBase + "/")) {
+        path = resolvedAbiPath;
+        abi = loadAbiFromPath(path);
+        if (abi) {
+          source = "TRUST_PROFILE_ABI";
+        }
+      } else {
+        console.warn(`Blocked abiPath outside registry: ${contract.abiPath}`);
       }
     }
   }

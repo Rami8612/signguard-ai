@@ -8,8 +8,10 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from 'fs'
-import { join, dirname } from 'path'
+import { join, dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { decode } from '../src/index.js'
 import { explain } from '../src/explainer.js'
@@ -20,14 +22,119 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 // Base paths
-const ABIS_PATH = join(__dirname, '..', 'abis')
-const PROFILES_PATH = join(__dirname, '..', 'profiles')
+const ABIS_PATH = resolve(__dirname, '..', 'abis')
+const PROFILES_PATH = resolve(__dirname, '..', 'profiles')
 
 const app = express()
 const PORT = process.env.PORT || 3001
 
+// ═══════════════════════════════════════════════════════════════
+// Security: Allowed RPC endpoints (SSRF protection)
+// ═══════════════════════════════════════════════════════════════
+const ALLOWED_RPC_HOSTS = [
+  'eth.llamarpc.com',
+  'rpc.ankr.com',
+  'cloudflare-eth.com',
+  'ethereum.publicnode.com',
+  'eth-mainnet.g.alchemy.com',
+  'mainnet.infura.io',
+  'eth-mainnet.alchemyapi.io',
+  'rpc.flashbots.net',
+  'api.securerpc.com',
+  'rpc.mevblocker.io',
+  'eth.drpc.org',
+  'ethereum-rpc.publicnode.com',
+  'polygon-rpc.com',
+  'rpc.ankr.com',
+  'arb1.arbitrum.io',
+  'mainnet.optimism.io',
+  'rpc.sepolia.org',
+  'rpc.goerli.mudit.blog',
+]
+
+/**
+ * Validate an RPC URL against the allowlist
+ */
+function isAllowedRpcUrl(url) {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:') return false
+    return ALLOWED_RPC_HOSTS.some(host =>
+      parsed.hostname === host || parsed.hostname.endsWith('.' + host)
+    )
+  } catch {
+    return false
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Security: Path traversal protection helpers
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Validate that a resolved path is within the expected base directory
+ */
+function isPathWithinBase(filePath, basePath) {
+  const resolved = resolve(filePath)
+  const resolvedBase = resolve(basePath)
+  return resolved.startsWith(resolvedBase + '\\') || resolved.startsWith(resolvedBase + '/')
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Middleware
-app.use(cors())
+// ═══════════════════════════════════════════════════════════════
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'"],
+    }
+  },
+  crossOriginEmbedderPolicy: false,
+}))
+
+// CORS: restrict to known origins
+const ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+]
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (curl, server-to-server, same-origin)
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true)
+    } else {
+      callback(new Error('Not allowed by CORS'))
+    }
+  }
+}))
+
+// General rate limiter
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests', message: 'Please try again later' }
+})
+app.use(generalLimiter)
+
+// Strict rate limiter for expensive endpoints (AI calls, external fetches)
+const strictLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests', message: 'Rate limit exceeded for this endpoint. Please try again later.' }
+})
+
 app.use(express.json({ limit: '1mb' }))
 
 /**
@@ -47,7 +154,7 @@ app.use(express.json({ limit: '1mb' }))
  * Response:
  *   Full decode result object (see src/index.js for structure)
  */
-app.post('/api/decode', async (req, res) => {
+app.post('/api/decode', strictLimiter, async (req, res) => {
   const startTime = Date.now()
 
   try {
@@ -145,7 +252,7 @@ app.post('/api/decode', async (req, res) => {
 
     res.status(500).json({
       error: 'Decode failed',
-      message: error.message,
+      message: 'An internal error occurred while decoding the calldata',
       _meta: {
         duration: Date.now() - startTime,
         timestamp: new Date().toISOString()
@@ -194,7 +301,7 @@ const SAFE_EXEC_TRANSACTION_ABI = [
  *   - safeAddress: the Safe address (if isSafe)
  *   - value: ETH value sent
  */
-app.post('/api/fetch-tx', async (req, res) => {
+app.post('/api/fetch-tx', strictLimiter, async (req, res) => {
   try {
     const { txHash, rpcUrl = 'https://eth.llamarpc.com' } = req.body
 
@@ -210,6 +317,14 @@ app.post('/api/fetch-tx', async (req, res) => {
       return res.status(400).json({
         error: 'Invalid transaction hash',
         message: 'Transaction hash must be 66 characters (0x + 64 hex chars)'
+      })
+    }
+
+    // SSRF protection: validate RPC URL against allowlist
+    if (!isAllowedRpcUrl(rpcUrl)) {
+      return res.status(400).json({
+        error: 'Invalid RPC URL',
+        message: 'RPC URL must be HTTPS and from an approved provider. Allowed hosts: ' + ALLOWED_RPC_HOSTS.slice(0, 5).join(', ') + ', ...'
       })
     }
 
@@ -299,7 +414,7 @@ app.post('/api/fetch-tx', async (req, res) => {
     console.error('Fetch transaction error:', error)
     res.status(500).json({
       error: 'Failed to fetch transaction',
-      message: error.message
+      message: 'An internal error occurred while fetching the transaction'
     })
   }
 })
@@ -326,7 +441,7 @@ app.get('/api/ai-providers', (req, res) => {
     console.error('Get AI providers error:', error)
     res.status(500).json({
       error: 'Failed to get AI providers',
-      message: error.message
+      message: 'An internal error occurred'
     })
   }
 })
@@ -384,6 +499,15 @@ app.post('/api/abis', (req, res) => {
 
     // Ensure chain directory exists
     const chainPath = join(ABIS_PATH, chain)
+
+    // Defense-in-depth: verify resolved path is within abis directory
+    if (!isPathWithinBase(chainPath, ABIS_PATH)) {
+      return res.status(400).json({
+        error: 'Invalid path',
+        message: 'Path resolves outside the allowed directory'
+      })
+    }
+
     if (!existsSync(chainPath)) {
       mkdirSync(chainPath, { recursive: true })
     }
@@ -407,7 +531,7 @@ app.post('/api/abis', (req, res) => {
     console.error('Save ABI error:', error)
     res.status(500).json({
       error: 'Failed to save ABI',
-      message: error.message
+      message: 'An internal error occurred while saving the ABI'
     })
   }
 })
@@ -464,7 +588,7 @@ app.get('/api/abis', (req, res) => {
     console.error('List ABIs error:', error)
     res.status(500).json({
       error: 'Failed to list ABIs',
-      message: error.message
+      message: 'An internal error occurred while listing ABIs'
     })
   }
 })
@@ -478,13 +602,37 @@ app.delete('/api/abis/:chain/:address', (req, res) => {
   try {
     const { chain, address } = req.params
 
+    // Validate chain name (path traversal protection)
+    if (!/^[a-zA-Z0-9_-]+$/.test(chain)) {
+      return res.status(400).json({
+        error: 'Invalid chain name',
+        message: 'Chain name must contain only alphanumeric characters, underscores, or hyphens'
+      })
+    }
+
+    // Validate address format (path traversal protection)
     const normalizedAddress = address.toLowerCase()
+    if (!/^0x[a-f0-9]{40}$/.test(normalizedAddress)) {
+      return res.status(400).json({
+        error: 'Invalid address format',
+        message: 'Address must be a valid Ethereum address (0x + 40 hex chars)'
+      })
+    }
+
     const filePath = join(ABIS_PATH, chain, `${normalizedAddress}.json`)
+
+    // Defense-in-depth: verify resolved path is within abis directory
+    if (!isPathWithinBase(filePath, ABIS_PATH)) {
+      return res.status(400).json({
+        error: 'Invalid path',
+        message: 'Path resolves outside the allowed directory'
+      })
+    }
 
     if (!existsSync(filePath)) {
       return res.status(404).json({
         error: 'ABI not found',
-        message: `No ABI found for ${address} on ${chain}`
+        message: `No ABI found for ${normalizedAddress} on ${chain}`
       })
     }
 
@@ -503,7 +651,7 @@ app.delete('/api/abis/:chain/:address', (req, res) => {
     console.error('Delete ABI error:', error)
     res.status(500).json({
       error: 'Failed to delete ABI',
-      message: error.message
+      message: 'An internal error occurred while deleting the ABI'
     })
   }
 })
@@ -562,7 +710,7 @@ app.post('/api/profiles', (req, res) => {
     console.error('Save profile error:', error)
     res.status(500).json({
       error: 'Failed to save profile',
-      message: error.message
+      message: 'An internal error occurred while saving the profile'
     })
   }
 })
@@ -608,7 +756,7 @@ app.get('/api/profiles', (req, res) => {
     console.error('List profiles error:', error)
     res.status(500).json({
       error: 'Failed to list profiles',
-      message: error.message
+      message: 'An internal error occurred while listing profiles'
     })
   }
 })
@@ -622,12 +770,29 @@ app.get('/api/profiles/:address', (req, res) => {
   try {
     const { address } = req.params
     const normalizedAddress = address.toLowerCase()
+
+    // Validate address format (path traversal protection)
+    if (!/^0x[a-f0-9]{40}$/.test(normalizedAddress)) {
+      return res.status(400).json({
+        error: 'Invalid address format',
+        message: 'Address must be a valid Ethereum address (0x + 40 hex chars)'
+      })
+    }
+
     const filePath = join(PROFILES_PATH, `${normalizedAddress}.json`)
+
+    // Defense-in-depth: verify resolved path is within profiles directory
+    if (!isPathWithinBase(filePath, PROFILES_PATH)) {
+      return res.status(400).json({
+        error: 'Invalid path',
+        message: 'Path resolves outside the allowed directory'
+      })
+    }
 
     if (!existsSync(filePath)) {
       return res.status(404).json({
         error: 'Profile not found',
-        message: `No profile found for ${address}`
+        message: `No profile found for the given address`
       })
     }
 
@@ -640,7 +805,7 @@ app.get('/api/profiles/:address', (req, res) => {
     console.error('Get profile error:', error)
     res.status(500).json({
       error: 'Failed to get profile',
-      message: error.message
+      message: 'An internal error occurred while retrieving the profile'
     })
   }
 })
@@ -654,12 +819,29 @@ app.delete('/api/profiles/:address', (req, res) => {
   try {
     const { address } = req.params
     const normalizedAddress = address.toLowerCase()
+
+    // Validate address format (path traversal protection)
+    if (!/^0x[a-f0-9]{40}$/.test(normalizedAddress)) {
+      return res.status(400).json({
+        error: 'Invalid address format',
+        message: 'Address must be a valid Ethereum address (0x + 40 hex chars)'
+      })
+    }
+
     const filePath = join(PROFILES_PATH, `${normalizedAddress}.json`)
+
+    // Defense-in-depth: verify resolved path is within profiles directory
+    if (!isPathWithinBase(filePath, PROFILES_PATH)) {
+      return res.status(400).json({
+        error: 'Invalid path',
+        message: 'Path resolves outside the allowed directory'
+      })
+    }
 
     if (!existsSync(filePath)) {
       return res.status(404).json({
         error: 'Profile not found',
-        message: `No profile found for ${address}`
+        message: 'No profile found for the given address'
       })
     }
 
@@ -674,7 +856,7 @@ app.delete('/api/profiles/:address', (req, res) => {
     console.error('Delete profile error:', error)
     res.status(500).json({
       error: 'Failed to delete profile',
-      message: error.message
+      message: 'An internal error occurred while deleting the profile'
     })
   }
 })
@@ -809,13 +991,20 @@ function serializeBigInt(obj) {
   return obj
 }
 
-// Start server
-app.listen(PORT, () => {
+// Start server - bind to localhost by default for security
+const HOST = process.env.HOST || '127.0.0.1'
+app.listen(PORT, HOST, () => {
   console.log(`
 ╔═══════════════════════════════════════════════════════════════╗
 ║                      SignGuard AI API                         ║
 ╠═══════════════════════════════════════════════════════════════╣
-║  Server running on http://localhost:${PORT}                      ║
+║  Server running on http://${HOST}:${PORT}                      ║
+║                                                               ║
+║  Security:                                                    ║
+║    - Bound to ${HOST} (set HOST=0.0.0.0 to expose)       ║
+║    - CORS restricted to localhost origins                     ║
+║    - Rate limiting enabled                                    ║
+║    - Helmet security headers active                           ║
 ║                                                               ║
 ║  Endpoints:                                                   ║
 ║    POST /api/decode              - Decode calldata            ║

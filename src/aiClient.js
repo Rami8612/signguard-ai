@@ -248,7 +248,8 @@ async function callOpenRouter(prompt, apiKey, model) {
 
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new Error(`OpenRouter API error (${response.status}): ${errorBody}`);
+    console.error(`[OpenRouter] API error (${response.status}):`, errorBody);
+    throw new Error(`OpenRouter API error (${response.status})`);
   }
 
   const data = await response.json();
@@ -279,7 +280,8 @@ async function callClaude(prompt, apiKey, model) {
 
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new Error(`Claude API error (${response.status}): ${errorBody}`);
+    console.error(`[Claude] API error (${response.status}):`, errorBody);
+    throw new Error(`Claude API error (${response.status})`);
   }
 
   const data = await response.json();
@@ -318,7 +320,8 @@ async function callOpenAI(prompt, apiKey, model) {
 
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new Error(`OpenAI API error (${response.status}): ${errorBody}`);
+    console.error(`[OpenAI] API error (${response.status}):`, errorBody);
+    throw new Error(`OpenAI API error (${response.status})`);
   }
 
   const data = await response.json();
@@ -361,7 +364,7 @@ async function callGemini(prompt, apiKey, model) {
     if (!response.ok) {
       const errorBody = await response.text();
       console.error(`[Gemini] Error response:`, errorBody);
-      throw new Error(`Gemini API error (${response.status}): ${errorBody}`);
+      throw new Error(`Gemini API error (${response.status})`);
     }
 
     const data = await response.json();
@@ -417,7 +420,8 @@ async function callOllama(prompt, model) {
 
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new Error(`Ollama API error (${response.status}): ${errorBody}`);
+    console.error(`[Ollama] API error (${response.status}):`, errorBody);
+    throw new Error(`Ollama API error (${response.status})`);
   }
 
   const data = await response.json();

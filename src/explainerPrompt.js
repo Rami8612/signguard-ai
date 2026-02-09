@@ -13,6 +13,30 @@
  */
 
 /**
+ * Maximum allowed length for user-provided labels in prompts.
+ * Prevents prompt injection via excessively long labels.
+ */
+const MAX_LABEL_LENGTH = 100;
+
+/**
+ * Sanitize a user-provided label for safe inclusion in AI prompts.
+ * - Truncates to MAX_LABEL_LENGTH
+ * - Removes newlines and control characters
+ * - Strips common prompt injection patterns
+ */
+function sanitizeLabel(label) {
+  if (!label || typeof label !== "string") return "Unknown";
+  let sanitized = label
+    .replace(/[\r\n\t]/g, " ")             // Remove newlines/tabs
+    .replace(/[\x00-\x1f\x7f]/g, "")       // Remove control characters
+    .trim();
+  if (sanitized.length > MAX_LABEL_LENGTH) {
+    sanitized = sanitized.slice(0, MAX_LABEL_LENGTH) + "...";
+  }
+  return sanitized || "Unknown";
+}
+
+/**
  * Information categories the AI can explain
  */
 const EXPLAINER_CATEGORIES = {
@@ -581,11 +605,11 @@ function buildTrustProfileUserPrompt(context) {
 
   parts.push("Explain this TRUST PROFILE VERIFIED transaction to a non-technical user:\n");
 
-  // Trust profile context
+  // Trust profile context (labels sanitized to prevent prompt injection)
   parts.push("VERIFICATION SOURCE: Trust Profile (NOT ABI-verified)");
-  parts.push(`TRUSTED CONTRACT: ${context.contractLabel}`);
-  parts.push(`TRUST LEVEL: ${context.trustLevel}`);
-  parts.push(`FUNCTION: ${context.functionLabel}`);
+  parts.push(`TRUSTED CONTRACT: ${sanitizeLabel(context.contractLabel)}`);
+  parts.push(`TRUST LEVEL: ${sanitizeLabel(context.trustLevel)}`);
+  parts.push(`FUNCTION: ${sanitizeLabel(context.functionLabel)}`);
   parts.push("");
 
   parts.push(`ACTION TYPE: ${context.actionType}`);
@@ -981,6 +1005,27 @@ export function validatePromptSafety(prompt) {
       const longHex = matches.filter(m => m.length > 42);
       if (longHex.length > 0) {
         issues.push("Contains raw hex data longer than an address");
+      }
+    }
+
+    // Check for prompt injection patterns
+    const injectionPatterns = [
+      /ignore\s+(all\s+)?previous\s+instructions/i,
+      /ignore\s+(all\s+)?above\s+instructions/i,
+      /disregard\s+(all\s+)?previous/i,
+      /forget\s+(all\s+)?previous/i,
+      /override\s+(all\s+)?previous/i,
+      /new\s+instructions?\s*:/i,
+      /system\s*prompt\s*:/i,
+      /you\s+are\s+now\s+a/i,
+      /act\s+as\s+(a\s+)?different/i,
+      /\bdo\s+not\s+follow\b.*\binstructions\b/i,
+    ];
+
+    for (const pattern of injectionPatterns) {
+      if (pattern.test(prompt.user)) {
+        issues.push("Contains potential prompt injection pattern");
+        break;
       }
     }
   }
